@@ -13,6 +13,10 @@
     "type": "git",
     "url": "https://github.com/upvoteclub/upvote-club-mcp-core.git"
   },
+  "bugs": {
+    "url": "https://github.com/upvoteclub/upvote-club-mcp-core/issues"
+  },
+  "homepage": "https://github.com/upvoteclub/upvote-club-mcp-core#readme",
   "author": "Upvote.club <yes@upvote.club>",
   "license": "MIT",
   "keywords": ["mcp", "upvote-club", "model-context-protocol"],
