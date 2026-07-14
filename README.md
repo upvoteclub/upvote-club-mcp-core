@@ -23,7 +23,7 @@ Full reference: [docs/API_REFERENCE.md](docs/API_REFERENCE.md)
 
 ## Used by
 
-- [upvote-club-mcp-local](https://github.com/alxgntv/upvote-club-mcp-local)
-- [upvote-club-mcp-mcpb](https://github.com/alxgntv/upvote-club-mcp-mcpb)
-- [upvote-club-mcp-remote](https://github.com/alxgntv/upvote-club-mcp-remote)
-- [upvote-club-mcp-apps](https://github.com/alxgntv/upvote-club-mcp-apps)
+- [upvote-club-mcp-local](https://github.com/upvoteclub/upvote-club-mcp-local)
+- [upvote-club-mcp-mcpb](https://github.com/upvoteclub/upvote-club-mcp-mcpb)
+- [upvote-club-mcp-remote](https://github.com/upvoteclub/upvote-club-mcp-remote)
+- [upvote-club-mcp-apps](https://github.com/upvoteclub/upvote-club-mcp-apps)
