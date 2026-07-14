@@ -28,18 +28,22 @@ const server = createUpvoteClubServer({
 await server.connect(new StdioServerTransport());
 ```
 
-## Tools (7)
+## Tools (8)
 
-| Tool | Auth |
-|------|------|
-| `list_platforms` | none |
-| `list_api_keys` | JWT (`UPVOTE_JWT`) |
-| `generate_api_key` | JWT |
-| `create_task` | API key |
-| `get_task_status` | API key |
-| `delete_task` | API key |
+| Tool | Auth | Description |
+|------|------|-------------|
+| `get_api_reference` | none | **Full docs**: request examples, min prices, all errors |
+| `list_platforms` | none | Platforms + min price per action |
+| `list_api_keys` | JWT | Active key metadata |
+| `generate_api_key` | JWT | New `upv_...` key (shown once) |
+| `create_task` | API key | Create promotion task |
+| `get_task_status` | API key | Progress + comment evidence |
+| `delete_task` | API key | Cancel + refund unused points |
+
+**Full reference:** [docs/API_REFERENCE.md](docs/API_REFERENCE.md) — examples, pricing, error catalog.
 
 ## Exports
 
 - `@upvote-club/mcp-core` → `createUpvoteClubServer`, `registerUpvoteClubTools`
 - `@upvote-club/mcp-core/platforms` → platform catalog helpers
+- `@upvote-club/mcp-core/api-reference` → `API_REFERENCE` object

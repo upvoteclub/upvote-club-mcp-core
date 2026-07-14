@@ -53,7 +53,7 @@ export const SOCIAL_NETWORKS = [
   {
     code: "REDDIT",
     name: "Reddit",
-    availableActions: ["UPVOTE", "COMMENT", "SAVE", "FOLLOW"],
+    availableActions: ["UPVOTE", "COMMENT"],
     postUrlExample: "https://www.reddit.com/r/subreddit/comments/123456/post_title",
     profileUrlExample: "https://www.reddit.com/user/username",
     domains: ["reddit.com"],
@@ -101,7 +101,7 @@ export const SOCIAL_NETWORKS = [
   {
     code: "DEVTO",
     name: "Dev.to",
-    availableActions: ["LIKE", "COMMENT", "SAVE", "FOLLOW", "UNICORN"],
+    availableActions: ["LIKE", "SAVE", "FOLLOW"],
     postUrlExample: "https://dev.to/username/article-title-123",
     profileUrlExample: "https://dev.to/username",
     domains: ["dev.to"],
@@ -109,7 +109,7 @@ export const SOCIAL_NETWORKS = [
   {
     code: "GITHUB",
     name: "GitHub",
-    availableActions: ["STAR", "FOLLOW", "WATCH"],
+    availableActions: ["STAR", "FOLLOW"],
     postUrlExample: "https://github.com/username/repository",
     profileUrlExample: "https://github.com/username",
     domains: ["github.com"],
@@ -157,7 +157,7 @@ export const SOCIAL_NETWORKS = [
   {
     code: "PRODUCTHUNT",
     name: "Product Hunt",
-    availableActions: ["UPVOTE", "FOLLOW", "COMMENT"],
+    availableActions: ["UPVOTE"],
     postUrlExample: "https://www.producthunt.com/posts/product-name",
     profileUrlExample: "https://www.producthunt.com/@username",
     domains: ["producthunt.com"],
@@ -165,7 +165,7 @@ export const SOCIAL_NETWORKS = [
   {
     code: "HACKERNEWS",
     name: "Hacker News",
-    availableActions: ["UPVOTE", "COMMENT"],
+    availableActions: ["UPVOTE"],
     postUrlExample: "https://news.ycombinator.com/item?id=123456",
     profileUrlExample: "https://news.ycombinator.com/user?id=username",
     domains: ["news.ycombinator.com", "ycombinator.com"],

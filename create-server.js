@@ -11,10 +11,12 @@ import {
   HIGH_MIN_PRICE_NETWORKS,
   MEANINGFUL_COMMENT_MIN_PRICE,
   ALL_ACTION_TYPES,
+  MIN_PRICES,
   detectNetworkFromUrl,
   getNetwork,
   minPriceFor,
 } from "./platforms.js";
+import { API_REFERENCE, getApiReferenceText } from "./api-reference.js";
 
 const DEFAULT_API_URL = "https://api.upvote.club";
 
@@ -130,13 +132,35 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
       return toolResult({
         success: true,
         platforms,
+        minPricesByAction: MIN_PRICES,
+        pricingRules: API_REFERENCE.pricingRules,
+        billing: API_REFERENCE.billing,
         notes: [
           "Prices are in Upvote.club points, charged per completed action.",
-          `COMMENT actions with meaningful_comment enabled require at least ${MEANINGFUL_COMMENT_MIN_PRICE} points per action.`,
-          `GitHub and Product Hunt actions require at least ${HIGH_MIN_PRICE_NETWORKS.GITHUB} points per action.`,
-          "Creating tasks via API requires an Upvote.club MATE plan, sufficient point balance, and an available daily task slot.",
+          `COMMENT + meaningful_comment: min ${MEANINGFUL_COMMENT_MIN_PRICE} pts/action.`,
+          `GitHub & Product Hunt: min ${HIGH_MIN_PRICE_NETWORKS.GITHUB} pts/action.`,
+          "MATE plan + balance + daily task slot required for create_task.",
+          "Call get_api_reference for full examples and error catalog.",
         ],
       });
+    }
+  );
+
+  server.registerTool(
+    "get_api_reference",
+    {
+      title: "Get API Reference",
+      description:
+        "Full Upvote.club Public API reference for MCP: all tool inputs/outputs, request examples (single-action, MULTI_ACTION, meaningful comments), minimum prices per platform/action, billing rules, and complete error catalog. Call before create_task if unsure about fields or pricing.",
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => {
+      console.error(`${logPrefix} Tool call: get_api_reference`);
+      return toolResult({ success: true, reference: API_REFERENCE });
     }
   );
 
@@ -214,14 +238,15 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
     {
       title: "Create Promotion Task",
       description:
-        "Create a promotion task on Upvote.club: real community members perform the requested action on the given URL. SPENDS points and one daily task slot — confirm with the user first. Auto-detects platform from URL when social_network_code is omitted.",
+        "Create a promotion task on Upvote.club. SPENDS points (price × actions_required, plan discount) and 1 daily slot. Call get_api_reference for examples and errors. Auto-detects platform from URL when social_network_code omitted. GitHub/Product Hunt min 16 pts/action; meaningful COMMENT min 64 pts/action.",
       inputSchema: {
         post_url: z.string().url().describe("URL of the post, profile, repo or product to promote"),
         type: z.enum([...ALL_ACTION_TYPES, "MULTI_ACTION"]).describe("Action type or MULTI_ACTION for bundles"),
-        price: z.number().int().min(2).optional().describe("Price per action in points (single-action tasks)"),
+        price: z.number().int().min(2).optional().describe("Price per action in points (single-action tasks). See list_platforms for minimums."),
         actions_required: z.number().int().min(1).optional().describe("Number of actions (single-action tasks)"),
         social_network_code: z.enum(SOCIAL_NETWORKS.map((n) => n.code)).optional(),
-        meaningful_comment: z.boolean().optional(),
+        is_pinned: z.boolean().optional().describe("Pin task to top of executor feed (default false)"),
+        meaningful_comment: z.boolean().optional().describe("COMMENT only: executors post exact meaningful_comments text (min 64 pts/action)"),
         meaningful_comments: meaningfulCommentsSchema.optional(),
         multi_action_items: z.array(multiActionItemSchema).min(2).optional(),
       },
@@ -305,6 +330,9 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
         type: isMulti ? "MULTI_ACTION" : args.type,
         social_network_code: networkCode,
       };
+      if (args.is_pinned !== undefined) {
+        payload.is_pinned = args.is_pinned;
+      }
       if (isMulti) {
         payload.multi_action_items = args.multi_action_items;
       } else {

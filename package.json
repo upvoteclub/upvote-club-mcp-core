@@ -6,7 +6,8 @@
   "main": "create-server.js",
   "exports": {
     ".": "./create-server.js",
-    "./platforms": "./platforms.js"
+    "./platforms": "./platforms.js",
+    "./api-reference": "./api-reference.js"
   },
   "repository": {
     "type": "git",
