@@ -1,0 +1,25 @@
+{
+  "name": "@upvote-club/mcp-core",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared MCP server factory for Upvote.club Public API",
+  "main": "create-server.js",
+  "exports": {
+    ".": "./create-server.js",
+    "./platforms": "./platforms.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alxgntv/upvote-club-mcp-core.git"
+  },
+  "author": "Upvote.club <yes@upvote.club>",
+  "license": "MIT",
+  "keywords": ["mcp", "upvote-club", "model-context-protocol"],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
