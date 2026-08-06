@@ -276,9 +276,16 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
         return toolResult({ success: false, http_status: status, ...data }, true);
       }
 
+      // ─── Ariadne's Thread [AT-1029] ─────────────────────
+      // What: Prefer backend dashboard_url; fallback to real My Tasks tab route
+      // Why:  /dashboard/my-tasks 404; source of truth is public-api create-task response
+      // Date: 2026-08-06
+      // Related: [AT-1032] backend→api/public_api_views.py:create_task_via_api, front→Dashboard.tsx
+      // ─────────────────────────────────────────────────────
       return toolResult({
         ...data,
-        dashboard_url: "https://upvote.club/dashboard/my-tasks",
+        dashboard_url:
+          data.dashboard_url || "https://upvote.club/dashboard?tab=mytasks",
         hint: "Use get_task_status to track progress. delete_task refunds unused points while incomplete.",
       });
     }

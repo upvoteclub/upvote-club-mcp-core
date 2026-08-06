@@ -1,6 +1,6 @@
 {
   "name": "@upvote-club/mcp-core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Shared MCP server factory for Upvote.club Public API",
   "main": "create-server.js",

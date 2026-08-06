@@ -174,6 +174,13 @@ export const API_REFERENCE = {
           price: 2,
           original_price: 20,
         },
+        // ─── Ariadne's Thread [AT-1033] ─────────────────────
+        // What: Document create_task dashboard_url pointing at My Tasks tab
+        // Why:  Old /dashboard/my-tasks path 404s; matches backend public-api response
+        // Date: 2026-08-06
+        // Related: [AT-1032] backend→api/public_api_views.py:create_task_via_api
+        // ─────────────────────────────────────────────────────
+        dashboard_url: "https://upvote.club/dashboard?tab=mytasks",
       },
       errors: [
         { status: 401, error: "Invalid or missing API key. Provide X-API-Key header or api_key parameter." },
