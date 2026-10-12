@@ -33,22 +33,29 @@ export const MIN_PRICES = {
 export const HIGH_MIN_PRICE_NETWORKS = { GITHUB: 16, PRODUCTHUNT: 16 };
 export const MEANINGFUL_COMMENT_MIN_PRICE = 64;
 
+// ─── Ariadne's Thread [AT-2243] ─────────────────────
+// What: Synchronize the MCP platform/action catalog with active production SocialNetwork rows.
+// Why:  Agents must expose every supported action and reject retired actions before task creation.
+// Date: 2026-10-12
+// Related: backend→api/models.py:SocialNetwork.available_actions,
+//          frontend→constants/socialNetworks.ts:socialNetworkMap
+// ─────────────────────────────────────────────────────
 export const SOCIAL_NETWORKS = [
   {
     code: "TWITTER",
     name: "Twitter (X.com)",
-    availableActions: ["LIKE", "COMMENT", "REPOST", "FOLLOW", "SAVE"],
-    postUrlExample: "https://twitter.com/username/status/123456789",
+    availableActions: ["LIKE", "COMMENT", "FOLLOW", "SAVE"],
+    postUrlExample: "https://x.com/username/status/123456789",
     profileUrlExample: "https://x.com/username",
     domains: ["twitter.com", "x.com"],
   },
   {
     code: "LINKEDIN",
     name: "LinkedIn",
-    availableActions: ["LIKE", "COMMENT", "REPOST", "FOLLOW", "SAVE"],
+    availableActions: ["LIKE", "COMMENT", "FOLLOW", "CONNECT", "SAVE"],
     postUrlExample: "https://www.linkedin.com/posts/username_post-title-activity-123456789",
     profileUrlExample: "https://www.linkedin.com/in/username",
-    domains: ["linkedin.com"],
+    domains: ["linkedin.com", "lnkd.in"],
   },
   {
     code: "REDDIT",
@@ -72,7 +79,7 @@ export const SOCIAL_NETWORKS = [
     availableActions: ["LIKE", "COMMENT", "FOLLOW", "SAVE"],
     postUrlExample: "https://www.tiktok.com/@username/video/1234567890",
     profileUrlExample: "https://www.tiktok.com/@username",
-    domains: ["tiktok.com"],
+    domains: ["tiktok.com", "vm.tiktok.com", "vt.tiktok.com"],
   },
   {
     code: "YOUTUBE",
@@ -85,10 +92,10 @@ export const SOCIAL_NETWORKS = [
   {
     code: "FACEBOOK",
     name: "Facebook",
-    availableActions: ["LIKE", "COMMENT", "REPOST", "FOLLOW", "SAVE"],
-    postUrlExample: "https://www.facebook.com/username/posts/123456789",
-    profileUrlExample: "https://www.facebook.com/username",
-    domains: ["facebook.com"],
+    availableActions: ["LIKE", "COMMENT", "FOLLOW", "SAVE"],
+    postUrlExample: "https://www.facebook.com/share/p/1ABCxyz",
+    profileUrlExample: "https://www.facebook.com/profile.php?id=100000000000000",
+    domains: ["facebook.com", "m.facebook.com", "web.facebook.com"],
   },
   {
     code: "MEDIUM",
@@ -117,15 +124,21 @@ export const SOCIAL_NETWORKS = [
   {
     code: "QUORA",
     name: "Quora",
-    availableActions: ["UPVOTE", "COMMENT", "FOLLOW", "SHARE"],
+    availableActions: ["UPVOTE", "DOWNVOTE", "COMMENT", "FOLLOW", "SHARE"],
     postUrlExample: "https://www.quora.com/question-title",
     profileUrlExample: "https://www.quora.com/profile/username",
-    domains: ["quora.com"],
+    domains: ["quora.com", "qr.com"],
   },
   {
     code: "SUBSTACK",
     name: "Substack",
-    availableActions: ["RESTACK", "COMMENT", "SAVE", "FOLLOW"],
+    // ─── Ariadne's Thread [AT-1045] ─────────────────────
+    // What: Add LIKE to Substack MCP platform catalog.
+    // Why:  MCP create_task must allow Substack LIKE like other networks.
+    // Date: 2026-08-07
+    // Related: [AT-1045] frontend→constants/socialNetworks.ts:SUBSTACK
+    // ─────────────────────────────────────────────────────
+    availableActions: ["LIKE", "RESTACK", "COMMENT", "SAVE", "FOLLOW", "SUBSCRIBE"],
     postUrlExample: "https://username.substack.com/p/article-title",
     profileUrlExample: "https://username.substack.com",
     domains: ["substack.com"],
@@ -133,7 +146,7 @@ export const SOCIAL_NETWORKS = [
   {
     code: "BLUESKY",
     name: "Bluesky",
-    availableActions: ["LIKE", "COMMENT", "REPOST", "FOLLOW"],
+    availableActions: ["LIKE", "COMMENT", "FOLLOW", "SAVE"],
     postUrlExample: "https://bsky.app/profile/username.bsky.social/post/123456",
     profileUrlExample: "https://bsky.app/profile/username.bsky.social",
     domains: ["bsky.app"],
@@ -141,10 +154,10 @@ export const SOCIAL_NETWORKS = [
   {
     code: "THREADS",
     name: "Threads",
-    availableActions: ["LIKE", "COMMENT", "REPOST", "FOLLOW", "SAVE"],
-    postUrlExample: "https://www.threads.net/@username/post/123456789",
-    profileUrlExample: "https://www.threads.net/@username",
-    domains: ["threads.net"],
+    availableActions: ["LIKE", "COMMENT", "FOLLOW", "SAVE"],
+    postUrlExample: "https://www.threads.com/@username/post/123456789",
+    profileUrlExample: "https://www.threads.com/@username",
+    domains: ["threads.com", "threads.net"],
   },
   {
     code: "MASTODON",
@@ -159,7 +172,7 @@ export const SOCIAL_NETWORKS = [
     name: "Product Hunt",
     availableActions: ["UPVOTE"],
     postUrlExample: "https://www.producthunt.com/posts/product-name",
-    profileUrlExample: "https://www.producthunt.com/@username",
+    profileUrlExample: "https://www.producthunt.com/users/username",
     domains: ["producthunt.com"],
   },
   {

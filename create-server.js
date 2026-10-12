@@ -19,33 +19,116 @@ import {
 import { API_REFERENCE, getApiReferenceText } from "./api-reference.js";
 
 const DEFAULT_API_URL = "https://api.upvote.club";
+const DEFAULT_OAUTH_RESOURCE_METADATA_URL =
+  "https://mcp.upvote.club/.well-known/oauth-protected-resource";
+
+const TASK_READ_SECURITY_SCHEMES = [
+  { type: "oauth2", scopes: ["tasks:read"] },
+];
+const TASK_WRITE_SECURITY_SCHEMES = [
+  { type: "oauth2", scopes: ["tasks:write"] },
+];
+
+const platformOutputSchema = z
+  .object({
+    code: z.string(),
+    name: z.string(),
+    availableActions: z.array(
+      z.object({
+        action: z.string(),
+        minPricePerActionPoints: z.number().int(),
+      }),
+    ),
+    postUrlExample: z.string(),
+    profileUrlExample: z.string(),
+    domains: z.array(z.string()),
+  })
+  .passthrough();
+
+const listPlatformsOutputSchema = z
+  .object({
+    success: z.boolean(),
+    platforms: z.array(platformOutputSchema),
+  })
+  .passthrough();
+
+const apiReferenceOutputSchema = z
+  .object({
+    success: z.boolean(),
+    reference: z.record(z.unknown()),
+  })
+  .passthrough();
+
+const publicApiOutputSchema = z
+  .object({
+    success: z.boolean(),
+  })
+  .passthrough();
+
+function toolSecurityMeta(securitySchemes, extra = {}) {
+  return {
+    securitySchemes,
+    ...extra,
+  };
+}
 
 /**
- * @param {{ apiKey?: string, apiUrl?: string, logPrefix?: string }} config
+ * @param {{
+ *   apiKey?: string,
+ *   apiUrl?: string,
+ *   logPrefix?: string,
+ *   oauthResourceMetadataUrl?: string,
+ *   serviceAuth?: { userId: string|number, scopes: string[]|string, internalSecret: string }
+ * }} config
  * @param {{ skipTools?: string[] }} options
  */
+// ─── Ariadne's Thread [AT-2244] ─────────────────────
+// What: Register one dual-auth MCP tool set with structured outputs and OAuth challenges.
+// Why:  Local clients keep API-key access while the canonical remote server uses account-scoped OAuth.
+// Date: 2026-10-12
+// Related: [AT-2237] backend→api/public_api_views.py:_authenticate_public_api_request,
+//          remote→server/oauth.js:introspectAccessToken
+// ─────────────────────────────────────────────────────
 export function registerUpvoteClubTools(server, config = {}, options = {}) {
   const skipTools = new Set(options.skipTools || []);
   const apiUrl = (config.apiUrl || process.env.UPVOTE_API_URL || DEFAULT_API_URL).replace(/\/+$/, "");
   const apiKey = config.apiKey ?? process.env.UPVOTE_API_KEY ?? "";
   const logPrefix = config.logPrefix || "[upvote-mcp]";
+  const oauthResourceMetadataUrl =
+    config.oauthResourceMetadataUrl ||
+    process.env.MCP_OAUTH_RESOURCE_METADATA_URL ||
+    DEFAULT_OAUTH_RESOURCE_METADATA_URL;
+  const serviceAuth = config.serviceAuth || null;
+  const serviceScopes = new Set(
+    Array.isArray(serviceAuth?.scopes)
+      ? serviceAuth.scopes
+      : String(serviceAuth?.scopes || "")
+          .split(/\s+/)
+          .filter(Boolean),
+  );
 
   async function apiRequest(method, path, body = null) {
     const headers = { "Content-Type": "application/json" };
 
-    if (!apiKey) {
-      console.error(`${logPrefix} apiRequest aborted: UPVOTE_API_KEY is not configured`);
+    if (!apiKey && !serviceAuth) {
+      console.error(`${logPrefix} apiRequest aborted: no authenticated principal`);
       return {
         ok: false,
         status: 0,
         data: {
           success: false,
           error:
-            "API key is not configured. Sign up at https://upvote.club, upgrade to MATE, generate your key at https://upvote.club/api and set UPVOTE_API_KEY.",
+            "Authentication is required. Connect your Upvote.club account or configure UPVOTE_API_KEY.",
         },
       };
     }
-    headers["X-API-Key"] = apiKey;
+    if (apiKey) {
+      headers["X-API-Key"] = apiKey;
+    } else {
+      headers["X-MCP-Internal-Secret"] = serviceAuth.internalSecret;
+      headers["X-MCP-User-ID"] = String(serviceAuth.userId);
+      headers["X-MCP-OAuth-Scopes"] = [...serviceScopes].join(" ");
+    }
 
     const url = `${apiUrl}${path}`;
     console.error(`${logPrefix} API request: ${method} ${url} body=${body ? JSON.stringify(body) : "none"}`);
@@ -80,11 +163,54 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
     return { ok: response.ok, status: response.status, data };
   }
 
-  function toolResult(payload, isError = false) {
-    return {
+  function toolResult(payload, isError = false, meta = null) {
+    const result = {
       content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+      structuredContent: payload,
       isError,
     };
+    if (meta) {
+      result._meta = meta;
+    }
+    return result;
+  }
+
+  function authorizationError(requiredScope) {
+    const hasServicePrincipal = Boolean(serviceAuth?.userId);
+    const error = hasServicePrincipal ? "insufficient_scope" : "invalid_token";
+    const description = hasServicePrincipal
+      ? `The connected account did not grant ${requiredScope}.`
+      : "Connect an Upvote.club account to continue.";
+    const challenge =
+      `Bearer resource_metadata="${oauthResourceMetadataUrl}", ` +
+      `error="${error}", error_description="${description}", ` +
+      `scope="${requiredScope}"`;
+    console.error(
+      `${logPrefix} Authorization rejected: scope=${requiredScope} reason=${error}`,
+    );
+    return toolResult(
+      {
+        success: false,
+        error: description,
+        required_scope: requiredScope,
+      },
+      true,
+      { "mcp/www_authenticate": [challenge] },
+    );
+  }
+
+  function requireAuthorization(requiredScope) {
+    if (apiKey) {
+      return null;
+    }
+    if (
+      serviceAuth?.userId &&
+      serviceAuth?.internalSecret &&
+      serviceScopes.has(requiredScope)
+    ) {
+      return null;
+    }
+    return authorizationError(requiredScope);
   }
 
   server.registerTool(
@@ -94,10 +220,13 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
       description:
         "List all social platforms supported by Upvote.club with their available promotion actions, minimum price per action (in points), and example URLs. Call this first if you are unsure which platform or action applies to the link the user wants to promote.",
       inputSchema: {},
+      outputSchema: listPlatformsOutputSchema,
       annotations: {
         readOnlyHint: true,
+        destructiveHint: false,
         openWorldHint: false,
       },
+      _meta: toolSecurityMeta(TASK_READ_SECURITY_SCHEMES),
     },
     async () => {
       console.error(`${logPrefix} Tool call: list_platforms`);
@@ -136,10 +265,13 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
       description:
         "Full Upvote.club Public API reference for MCP: all tool inputs/outputs, request examples (single-action, MULTI_ACTION, meaningful comments), minimum prices per platform/action, billing rules, and complete error catalog. Call before create_task if unsure about fields or pricing.",
       inputSchema: {},
+      outputSchema: apiReferenceOutputSchema,
       annotations: {
         readOnlyHint: true,
+        destructiveHint: false,
         openWorldHint: false,
       },
+      _meta: toolSecurityMeta(TASK_READ_SECURITY_SCHEMES),
     },
     async () => {
       console.error(`${logPrefix} Tool call: get_api_reference`);
@@ -148,9 +280,9 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
   );
 
   const meaningfulCommentsSchema = z
-    .array(z.object({ text: z.string().min(1).describe("Comment text executors must post (no links allowed)") }))
+    .array(z.object({ text: z.string().trim().min(1).describe("Comment text executors must post (no links allowed)") }))
     .min(1)
-    .describe('Comment texts for meaningful COMMENT actions, e.g. [{"text": "Great tool"}]');
+    .describe("One non-empty comment per requested meaningful COMMENT action; links are not allowed");
 
   const multiActionItemSchema = z.object({
     action_type: z.enum(ALL_ACTION_TYPES).describe("Action type, must be unique within the bundle"),
@@ -175,17 +307,32 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
         is_pinned: z.boolean().optional().describe("Pin task to top of executor feed (default false)"),
         meaningful_comment: z.boolean().optional().describe("COMMENT only: executors post exact meaningful_comments text (min 64 pts/action)"),
         meaningful_comments: meaningfulCommentsSchema.optional(),
+        long_comment: z
+          .boolean()
+          .optional()
+          .describe(
+            "COMMENT only: use unique long comments from the Upvote.club bank. Defaults true for eligible COMMENT tasks when omitted; incompatible with meaningful_comment.",
+          ),
         multi_action_items: z.array(multiActionItemSchema).min(2).optional(),
       },
+      outputSchema: publicApiOutputSchema,
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         idempotentHint: false,
         openWorldHint: true,
       },
+      _meta: toolSecurityMeta(TASK_WRITE_SECURITY_SCHEMES, {
+        "openai/toolInvocation/invoking": "Creating promotion task…",
+        "openai/toolInvocation/invoked": "Promotion task created",
+      }),
     },
     async (args) => {
       console.error(`${logPrefix} Tool call: create_task args=${JSON.stringify(args)}`);
+      const authorizationFailure = requireAuthorization("tasks:write");
+      if (authorizationFailure) {
+        return authorizationFailure;
+      }
 
       const isMulti = args.type === "MULTI_ACTION" || (Array.isArray(args.multi_action_items) && args.multi_action_items.length >= 2);
 
@@ -206,7 +353,27 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
       }
 
       if (isMulti) {
+        if (!Array.isArray(args.multi_action_items) || args.multi_action_items.length < 2) {
+          return toolResult(
+            {
+              success: false,
+              error: "multi_action_items must contain at least two actions when type is MULTI_ACTION.",
+            },
+            true,
+          );
+        }
+        const seenActions = new Set();
         for (const item of args.multi_action_items || []) {
+          if (seenActions.has(item.action_type)) {
+            return toolResult(
+              {
+                success: false,
+                error: `Duplicate action type in multi_action_items: ${item.action_type}.`,
+              },
+              true,
+            );
+          }
+          seenActions.add(item.action_type);
           if (!network.availableActions.includes(item.action_type)) {
             return toolResult(
               {
@@ -223,6 +390,43 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
               true
             );
           }
+          if (item.meaningful_comment) {
+            const commentCount = (item.meaningful_comments || []).filter(
+              (comment) => comment.text.trim().length > 0,
+            ).length;
+            if (commentCount < item.actions_required) {
+              return toolResult(
+                {
+                  success: false,
+                  error:
+                    `meaningful_comments for ${item.action_type} must contain at least ` +
+                    `${item.actions_required} non-empty comments (got ${commentCount}).`,
+                },
+                true,
+              );
+            }
+          }
+        }
+        const commentItem = args.multi_action_items.find(
+          (item) => item.action_type === "COMMENT",
+        );
+        if (args.long_comment && !commentItem) {
+          return toolResult(
+            {
+              success: false,
+              error: "long_comment requires a COMMENT item in multi_action_items.",
+            },
+            true,
+          );
+        }
+        if (args.long_comment && commentItem?.meaningful_comment) {
+          return toolResult(
+            {
+              success: false,
+              error: "long_comment and meaningful_comment cannot be enabled together.",
+            },
+            true,
+          );
         }
       } else {
         if (!network.availableActions.includes(args.type)) {
@@ -250,6 +454,40 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
             true
           );
         }
+        if (args.meaningful_comment) {
+          const commentCount = args.meaningful_comments.filter(
+            (comment) => comment.text.trim().length > 0,
+          ).length;
+          if (commentCount < args.actions_required) {
+            return toolResult(
+              {
+                success: false,
+                error:
+                  `meaningful_comments must contain at least ${args.actions_required} ` +
+                  `non-empty comments (got ${commentCount}).`,
+              },
+              true,
+            );
+          }
+        }
+        if (args.long_comment && args.type !== "COMMENT") {
+          return toolResult(
+            {
+              success: false,
+              error: "long_comment is only supported for COMMENT tasks.",
+            },
+            true,
+          );
+        }
+        if (args.long_comment && args.meaningful_comment) {
+          return toolResult(
+            {
+              success: false,
+              error: "long_comment and meaningful_comment cannot be enabled together.",
+            },
+            true,
+          );
+        }
       }
 
       const payload = {
@@ -259,6 +497,9 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
       };
       if (args.is_pinned !== undefined) {
         payload.is_pinned = args.is_pinned;
+      }
+      if (args.long_comment !== undefined) {
+        payload.long_comment = args.long_comment;
       }
       if (isMulti) {
         payload.multi_action_items = args.multi_action_items;
@@ -301,13 +542,23 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
       inputSchema: {
         task_ids: z.array(z.number().int().positive()).min(1).describe("Task IDs from create_task"),
       },
+      outputSchema: publicApiOutputSchema,
       annotations: {
         readOnlyHint: true,
-        openWorldHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
       },
+      _meta: toolSecurityMeta(TASK_READ_SECURITY_SCHEMES, {
+        "openai/toolInvocation/invoking": "Loading task progress…",
+        "openai/toolInvocation/invoked": "Task progress ready",
+      }),
     },
     async (args) => {
       console.error(`${logPrefix} Tool call: get_task_status task_ids=${args.task_ids.join(",")}`);
+      const authorizationFailure = requireAuthorization("tasks:read");
+      if (authorizationFailure) {
+        return authorizationFailure;
+      }
       const query = args.task_ids.join(",");
       const { ok, status, data } = await apiRequest("GET", `/api/public-api/task-status/?task_ids=${encodeURIComponent(query)}`);
       if (!ok) {
@@ -328,15 +579,24 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
       inputSchema: {
         task_id: z.number().int().positive().describe("ID of the task to delete"),
       },
+      outputSchema: publicApiOutputSchema,
       annotations: {
         readOnlyHint: false,
         destructiveHint: true,
         idempotentHint: true,
-        openWorldHint: true,
+        openWorldHint: false,
       },
+      _meta: toolSecurityMeta(TASK_WRITE_SECURITY_SCHEMES, {
+        "openai/toolInvocation/invoking": "Deleting promotion task…",
+        "openai/toolInvocation/invoked": "Promotion task deleted",
+      }),
     },
     async (args) => {
       console.error(`${logPrefix} Tool call: delete_task task_id=${args.task_id}`);
+      const authorizationFailure = requireAuthorization("tasks:write");
+      if (authorizationFailure) {
+        return authorizationFailure;
+      }
       const { ok, status, data } = await apiRequest("DELETE", `/api/public-api/delete-task/${args.task_id}/`);
       if (!ok) {
         return toolResult({ success: false, http_status: status, ...data }, true);
@@ -346,7 +606,15 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
   );
   }
 
-  return { apiRequest, toolResult, logPrefix, apiUrl, apiKey };
+  return {
+    apiRequest,
+    toolResult,
+    requireAuthorization,
+    logPrefix,
+    apiUrl,
+    apiKey,
+    serviceAuth,
+  };
 }
 
 export function createUpvoteClubServer(config = {}, options = {}) {
@@ -355,7 +623,12 @@ export function createUpvoteClubServer(config = {}, options = {}) {
 
   const server = new McpServer({
     name: "upvote-club",
-    version: "1.0.0",
+    version: "2.0.0",
+  }, {
+    instructions:
+      "Use list_platforms before creating a task when the platform or action is uncertain. " +
+      "Before create_task, confirm the URL, action, quantity, price per action, and that points will be spent. " +
+      "Use delete_task only after explicit user confirmation.",
   });
 
   registerUpvoteClubTools(server, config, options);

@@ -11,14 +11,21 @@ import {
   SOCIAL_NETWORKS,
 } from "./platforms.js";
 
+// ─── Ariadne's Thread [AT-2245] ─────────────────────
+// What: Document dual API-key/OAuth authentication and every current create-task field.
+// Why:  Universal MCP clients must use the same paid-plan rules and payload contract as production.
+// Date: 2026-10-12
+// Related: [AT-2244] core→create-server.js:registerUpvoteClubTools,
+//          [AT-2230] backend→api/mcp_oauth_views.py
+// ─────────────────────────────────────────────────────
 export const API_REFERENCE = {
   baseUrl: "https://api.upvote.club/api/public-api/",
   setup: {
     steps: [
       "1. Register at https://upvote.club",
-      "2. Upgrade to the MATE plan (API access is included)",
-      "3. Open https://upvote.club/api and generate your API key (starts with upv_)",
-      "4. Paste the key into your MCP connector as UPVOTE_API_KEY — shown once, save it securely",
+      "2. Activate the MEMBER or MATE plan (API access is included)",
+      "3. Remote MCP: connect your Upvote.club account with OAuth when your MCP client prompts",
+      "4. Local MCP: generate an API key at https://upvote.club/api and set UPVOTE_API_KEY",
     ],
     apiKeyUrl: "https://upvote.club/api",
     signupUrl: "https://upvote.club",
@@ -27,16 +34,18 @@ export const API_REFERENCE = {
     format: "upv_<token>",
   },
   authentication: {
-    description: "One API key from https://upvote.club/api. No separate login flow in MCP.",
-    header: "X-API-Key",
-    envVar: "UPVOTE_API_KEY",
+    description:
+      "Remote MCP (https://mcp.upvote.club/mcp) requires credentials on every request: OAuth 2.1 account connection or an X-API-Key header. Local/stdio MCP uses an API key from https://upvote.club/api.",
+    remote: "OAuth 2.1 authorization code with PKCE, or X-API-Key header",
+    localHeader: "X-API-Key",
+    localEnvVar: "UPVOTE_API_KEY",
   },
   billing: {
     currency: "Upvote.club points",
     chargeModel: "price × actions_required per action type (plan discount applied on create)",
     dailyTaskSlot: "Each create_task consumes 1 available_tasks slot",
     refundOnDelete: "delete_task refunds points for incomplete actions and restores 1 slot",
-    matePlanRequired: "API access requires MATE plan (403 if MEMBER/BUDDY/FREE without upgrade)",
+    paidPlanRequired: "API access requires an active MEMBER or MATE plan",
   },
   pricingRules: {
     globalMinimumPerAction: 2,
@@ -65,17 +74,17 @@ export const API_REFERENCE = {
   })),
   tools: {
     list_platforms: {
-      description: "Returns platform catalog with actions and minimum prices. No auth required.",
+      description: "Returns platform catalog with actions and minimum prices. Does not call the Public API; remote MCP still requires OAuth or X-API-Key to connect.",
       input: {},
       outputExample: { success: true, platforms: [{ code: "REDDIT", name: "Reddit", availableActions: [] }] },
     },
     get_api_reference: {
-      description: "Returns this full reference document (examples, errors, pricing). No auth required.",
+      description: "Returns this full reference document (examples, errors, pricing). Does not call the Public API; remote MCP still requires OAuth or X-API-Key to connect.",
       input: {},
     },
     create_task: {
       description: "Create promotion task. Spends points and 1 daily slot immediately.",
-      auth: "X-API-Key + MATE plan",
+      auth: "OAuth 2.1 or X-API-Key + active MEMBER/MATE plan",
       http: "POST /api/public-api/create-task/",
       inputFields: {
         post_url: { type: "string (URL)", required: true, description: "Post, profile, repo or product URL to promote" },
@@ -101,6 +110,14 @@ export const API_REFERENCE = {
           type: "array",
           required: "when meaningful_comment is true",
           format: '[{ "text": "Your comment without links" }]',
+          rules: ["Provide at least one non-empty comment per actions_required slot"],
+        },
+        long_comment: {
+          type: "boolean",
+          optional: true,
+          default: "true for eligible COMMENT tasks",
+          description:
+            "Use unique comments from the Upvote.club long-comment bank; incompatible with meaningful_comment",
         },
         multi_action_items: {
           type: "array",
@@ -131,7 +148,7 @@ export const API_REFERENCE = {
           type: "COMMENT",
           social_network_code: "REDDIT",
           price: 64,
-          actions_required: 5,
+          actions_required: 1,
           meaningful_comment: true,
           meaningful_comments: [{ text: "Really helpful breakdown, saved this for later." }],
         },
@@ -144,7 +161,7 @@ export const API_REFERENCE = {
             {
               action_type: "COMMENT",
               price: 64,
-              actions_required: 2,
+              actions_required: 1,
               meaningful_comment: true,
               meaningful_comments: [{ text: "Solid thread, thanks for sharing." }],
             },
@@ -184,7 +201,7 @@ export const API_REFERENCE = {
       },
       errors: [
         { status: 401, error: "Invalid or missing API key. Provide X-API-Key header or api_key parameter." },
-        { status: 403, error: "API access requires MATE plan. Please upgrade your account." },
+        { status: 403, error: "API access requires MEMBER or MATE plan. Please upgrade your account." },
         { status: 400, error: "Missing required fields: post_url, type, price, actions_required, social_network_code" },
         { status: 400, error: "Minimum price per action is 2 points" },
         { status: 400, error: "No available tasks left. Please purchase more tasks." },
@@ -204,6 +221,11 @@ export const API_REFERENCE = {
           status: 400,
           error: "meaningful_comments is required when meaningful_comment is enabled. Format: [{\"text\": \"comment text\"}]",
         },
+        {
+          status: 400,
+          error: "meaningful_comments must contain at least N non-empty comments to cover actions_required",
+        },
+        { status: 400, error: "long_comment and meaningful_comment cannot be enabled together" },
         { status: 400, error: "Comment text must not contain links" },
         { status: 400, error: "multi_action_items must be a list with at least two actions" },
         { status: 400, error: "Action type X is not available for Network Name" },
@@ -211,7 +233,7 @@ export const API_REFERENCE = {
     },
     get_task_status: {
       description: "Track progress for one or more tasks you created.",
-      auth: "X-API-Key",
+      auth: "OAuth 2.1 or X-API-Key",
       http: "GET /api/public-api/task-status/?task_ids=123,124",
       input: { task_ids: [123, 124] },
       successExample: {
@@ -254,7 +276,7 @@ export const API_REFERENCE = {
     },
     delete_task: {
       description: "Delete incomplete task. Refunds unused points, restores daily slot.",
-      auth: "X-API-Key",
+      auth: "OAuth 2.1 or X-API-Key",
       http: "DELETE /api/public-api/delete-task/{task_id}/",
       input: { task_id: 12345 },
       successExample: {
@@ -274,7 +296,7 @@ export const API_REFERENCE = {
     },
   },
   workflowForClaude: [
-    "0. If user has no API key: send them to https://upvote.club → MATE plan → https://upvote.club/api to generate key.",
+    "0. Remote clients connect with OAuth; local clients use an API key from https://upvote.club/api. MEMBER or MATE is required.",
     "1. Call get_api_reference or list_platforms before first create_task in a session.",
     "2. Detect social_network_code from URL or ask user.",
     "3. Pick action type allowed on that platform; check min price (16 for GitHub/Product Hunt, 64 for meaningful COMMENT).",

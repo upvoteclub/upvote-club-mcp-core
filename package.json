@@ -1,6 +1,6 @@
 {
   "name": "@upvote-club/mcp-core",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "type": "module",
   "description": "Shared MCP server factory for Upvote.club Public API",
   "main": "create-server.js",
@@ -20,9 +20,12 @@
   "author": "Upvote.club <yes@upvote.club>",
   "license": "MIT",
   "keywords": ["mcp", "upvote-club", "model-context-protocol"],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.0",
-    "zod": "^3.24.0"
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^3.25.76"
   },
   "engines": {
     "node": ">=18.0.0"

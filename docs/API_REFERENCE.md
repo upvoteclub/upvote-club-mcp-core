@@ -3,21 +3,20 @@
 ## Setup
 
 1. Register at **https://upvote.club**
-2. Subscribe to the **MATE** plan (API access requires MATE)
-3. Open **https://upvote.club/api** and generate your API key (`upv_...`)
-4. Paste the key into your MCP connector settings as `UPVOTE_API_KEY`
+2. Activate the **MEMBER** or **MATE** plan
+3. Remote MCP: connect your Upvote.club account with OAuth
+4. Local MCP: generate an API key (`upv_...`) at **https://upvote.club/api**
 
 The key is shown only once — save it securely. To rotate, generate a new key at https://upvote.club/api
-
-MCP does **not** issue or generate keys — it only uses a key you already created in the dashboard.
 
 ## Auth
 
 | Field | Value |
 |-------|-------|
-| Header | `X-API-Key: upv_...` |
-| Env var | `UPVOTE_API_KEY` |
-| Get your key | https://upvote.club/api |
+| Remote MCP | OAuth 2.1 authorization code + PKCE |
+| API-key header | `X-API-Key: upv_...` |
+| Local env var | `UPVOTE_API_KEY` |
+| Generate API key | https://upvote.club/api |
 
 ## Pricing
 
@@ -64,7 +63,7 @@ MCP does **not** issue or generate keys — it only uses a key you already creat
   "type": "COMMENT",
   "social_network_code": "REDDIT",
   "price": 64,
-  "actions_required": 5,
+  "actions_required": 1,
   "meaningful_comment": true,
   "meaningful_comments": [{ "text": "Really helpful breakdown." }]
 }
@@ -82,7 +81,7 @@ MCP does **not** issue or generate keys — it only uses a key you already creat
     {
       "action_type": "COMMENT",
       "price": 64,
-      "actions_required": 2,
+      "actions_required": 1,
       "meaningful_comment": true,
       "meaningful_comments": [{ "text": "Solid thread." }]
     }
@@ -90,27 +89,43 @@ MCP does **not** issue or generate keys — it only uses a key you already creat
 }
 ```
 
+### Long comment from the Upvote.club bank
+
+```json
+{
+  "post_url": "https://www.reddit.com/r/SaaS/comments/xyz/post/",
+  "type": "COMMENT",
+  "social_network_code": "REDDIT",
+  "price": 4,
+  "actions_required": 5,
+  "long_comment": true
+}
+```
+
 ## create_task — errors
 
 | HTTP | Error |
 |------|-------|
-| 401 | Invalid or missing API key |
-| 403 | MATE plan required |
+| 401 | Invalid or missing OAuth/API-key credentials |
+| 403 | MEMBER or MATE plan required |
 | 400 | Missing required fields |
 | 400 | Minimum price per action is 2 points |
 | 400 | No available tasks left |
 | 400 | Insufficient balance |
 | 400 | Duplicate URL+type+platform |
-| 400 | meaningful_comments required / no links |
+| 400 | meaningful_comments required, insufficient text count, or links present |
+| 400 | long_comment and meaningful_comment enabled together |
 
-## Tools (6)
+## Tools (5)
 
 | Tool | Auth | Purpose |
 |------|------|---------|
-| `get_api_reference` | none | Full docs (JSON) |
-| `list_platforms` | none | Platforms + min prices |
-| `create_task` | API key | Create promotion |
-| `get_task_status` | API key | Track progress |
-| `delete_task` | API key | Cancel + refund |
+| `get_api_reference` | No API call | Full docs (JSON) |
+| `list_platforms` | No API call | Platforms + min prices |
+| `create_task` | OAuth or API key | Create promotion |
+| `get_task_status` | OAuth or API key | Track progress |
+| `delete_task` | OAuth or API key | Cancel + refund |
+
+Remote MCP requires OAuth or an API key on every request, including the catalog tools.
 
 Machine-readable: call `get_api_reference` or read `api-reference.js`.

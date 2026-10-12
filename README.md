@@ -6,32 +6,33 @@ Shared MCP server for the [Upvote.club Public API](https://upvote.club/api).
 
 | Package | Repository | Use case |
 |---------|------------|----------|
-| **Core** | **This repo** — [upvote-club-mcp-core](https://github.com/upvoteclub/upvote-club-mcp-core) | Shared MCP server library (6 tools) |
+| **Core** | **This repo** — [upvote-club-mcp-core](https://github.com/upvoteclub/upvote-club-mcp-core) | Shared MCP server library (5 tools) |
 | Local | [upvote-club-mcp-local](https://github.com/upvoteclub/upvote-club-mcp-local) | Cursor, Claude Code, manual Claude Desktop (`stdio`) |
 | MCPB | [upvote-club-mcp-mcpb](https://github.com/upvoteclub/upvote-club-mcp-mcpb) | Single-click Claude Desktop `.mcpb` install |
-| Remote | [upvote-club-mcp-remote](https://github.com/upvoteclub/upvote-club-mcp-remote) | Claude.ai custom connector (Streamable HTTP) |
-| Apps | [upvote-club-mcp-apps](https://github.com/upvoteclub/upvote-club-mcp-apps) | MCP Apps + inline task progress UI |
+| Remote | [upvote-club-mcp-remote](https://github.com/upvoteclub/upvote-club-mcp-remote) | Canonical remote server: OAuth, API keys, and MCP Apps UI |
 
 Public API UI: [upvote.club/api](https://upvote.club/api)
 
 ## Setup
 
 1. Register at **https://upvote.club**
-2. **MATE** plan
-3. Generate API key at **https://upvote.club/api**
-4. Set `UPVOTE_API_KEY=upv_...` in your MCP config
+2. Active **MEMBER** or **MATE** plan
+3. Remote MCP: connect with OAuth
+4. Local MCP: generate a key at **https://upvote.club/api** and set `UPVOTE_API_KEY=upv_...`
 
-Install a delivery package above — **Local**, **MCPB**, **Remote**, or **Apps** — not this core repo directly unless you are building on top of it.
+Use the canonical **Remote** endpoint for HTTP MCP hosts. Install **Local** or **MCPB** only when a local stdio process is required.
 
-## Tools (6)
+## Tools (5)
 
 | Tool | Auth |
 |------|------|
-| `get_api_reference` | none |
-| `list_platforms` | none |
-| `create_task` | API key |
-| `get_task_status` | API key |
-| `delete_task` | API key |
+| `get_api_reference` | No API call |
+| `list_platforms` | No API call |
+| `create_task` | OAuth or API key |
+| `get_task_status` | OAuth or API key |
+| `delete_task` | OAuth or API key |
+
+Remote MCP requires OAuth or an API key on every request, including the catalog tools.
 
 Full reference: [docs/API_REFERENCE.md](docs/API_REFERENCE.md)
 
@@ -40,7 +41,6 @@ Full reference: [docs/API_REFERENCE.md](docs/API_REFERENCE.md)
 - [upvote-club-mcp-local](https://github.com/upvoteclub/upvote-club-mcp-local)
 - [upvote-club-mcp-mcpb](https://github.com/upvoteclub/upvote-club-mcp-mcpb)
 - [upvote-club-mcp-remote](https://github.com/upvoteclub/upvote-club-mcp-remote)
-- [upvote-club-mcp-apps](https://github.com/upvoteclub/upvote-club-mcp-apps)
 
 ## Privacy
 
