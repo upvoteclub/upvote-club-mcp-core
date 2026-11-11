@@ -710,7 +710,7 @@ export function createUpvoteClubServer(config = {}, options = {}) {
 
   const server = new McpServer({
     name: "upvote-club",
-    version: "2.0.0",
+    version: "2.1.0",
   }, {
     instructions:
       "Use list_platforms before creating a task when the platform or action is uncertain. " +
