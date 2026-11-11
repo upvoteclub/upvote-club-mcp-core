@@ -33,6 +33,21 @@ export const MIN_PRICES = {
 export const HIGH_MIN_PRICE_NETWORKS = { GITHUB: 16, PRODUCTHUNT: 16 };
 export const MEANINGFUL_COMMENT_MIN_PRICE = 64;
 
+// ─── Ariadne's Thread [AT-3054] ─────────────────────
+// What: Mirror dashboard rules for meaningful comments and MULTI_ACTION bundles.
+// Why:  MCP must offer the same task options as upvote.club, not combos the dashboard never sells.
+// Date: 2026-11-10
+// Related: frontend→constants/socialNetworks.ts:MEANINGFUL_COMMENT_VERIFICATION_NETWORKS,
+//          frontend→utils/multiAction.ts:COMBO_EXCLUDED_ACTIONS(_BY_NETWORK),
+//          backend→api/utils/multi_action_task.py:normalize_multi_action_items (AT-2803)
+// ─────────────────────────────────────────────────────
+export const MEANINGFUL_COMMENT_NETWORKS = ["QUORA", "REDDIT", "LINKEDIN"];
+export const COMBO_EXCLUDED_ACTIONS = ["CONNECT"];
+export const COMBO_EXCLUDED_ACTIONS_BY_NETWORK = {
+  SUBSTACK: ["SUBSCRIBE"],
+  PRODUCTHUNT: ["FOLLOW"],
+};
+
 // ─── Ariadne's Thread [AT-2243] ─────────────────────
 // What: Synchronize the MCP platform/action catalog with active production SocialNetwork rows.
 // Why:  Agents must expose every supported action and reject retired actions before task creation.
@@ -116,7 +131,8 @@ export const SOCIAL_NETWORKS = [
   {
     code: "GITHUB",
     name: "GitHub",
-    availableActions: ["STAR", "FOLLOW"],
+    // [AT-3054] WATCH is live again on the dashboard and backend (AT-2528, migration 0253).
+    availableActions: ["STAR", "FOLLOW", "WATCH"],
     postUrlExample: "https://github.com/username/repository",
     profileUrlExample: "https://github.com/username",
     domains: ["github.com"],
@@ -124,7 +140,8 @@ export const SOCIAL_NETWORKS = [
   {
     code: "QUORA",
     name: "Quora",
-    availableActions: ["UPVOTE", "DOWNVOTE", "COMMENT", "FOLLOW", "SHARE"],
+    // [AT-3054] DOWNVOTE and SHARE are retired on the backend (api/constants.py:RETIRED_NETWORK_ACTIONS).
+    availableActions: ["UPVOTE", "COMMENT", "FOLLOW"],
     postUrlExample: "https://www.quora.com/question-title",
     profileUrlExample: "https://www.quora.com/profile/username",
     domains: ["quora.com", "qr.com"],
@@ -217,6 +234,21 @@ export function detectNetworkFromUrl(rawUrl) {
 
 export function getNetwork(code) {
   return SOCIAL_NETWORKS.find((n) => n.code === code) || null;
+}
+
+export function isComboEligible(networkCode, actionType) {
+  if (COMBO_EXCLUDED_ACTIONS.includes(actionType)) {
+    return false;
+  }
+  return !(COMBO_EXCLUDED_ACTIONS_BY_NETWORK[networkCode] || []).includes(actionType);
+}
+
+export function comboActionsFor(network) {
+  return network.availableActions.filter((action) => isComboEligible(network.code, action));
+}
+
+export function supportsMeaningfulComment(networkCode) {
+  return MEANINGFUL_COMMENT_NETWORKS.includes(networkCode);
 }
 
 export function minPriceFor(networkCode, actionType, meaningfulComment = false) {

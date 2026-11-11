@@ -12,9 +12,13 @@ import {
   MEANINGFUL_COMMENT_MIN_PRICE,
   ALL_ACTION_TYPES,
   MIN_PRICES,
+  MEANINGFUL_COMMENT_NETWORKS,
+  comboActionsFor,
   detectNetworkFromUrl,
   getNetwork,
+  isComboEligible,
   minPriceFor,
+  supportsMeaningfulComment,
 } from "./platforms.js";
 import { API_REFERENCE, getApiReferenceText } from "./api-reference.js";
 
@@ -237,6 +241,8 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
           action: a,
           minPricePerActionPoints: minPriceFor(n.code, a),
         })),
+        comboActions: comboActionsFor(n),
+        meaningfulCommentSupported: supportsMeaningfulComment(n.code),
         postUrlExample: n.postUrlExample,
         profileUrlExample: n.profileUrlExample,
         domains: n.domains,
@@ -249,9 +255,10 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
         billing: API_REFERENCE.billing,
         notes: [
           "Prices are in Upvote.club points, charged per completed action.",
-          `COMMENT + meaningful_comment: min ${MEANINGFUL_COMMENT_MIN_PRICE} pts/action.`,
+          `COMMENT + meaningful_comment: min ${MEANINGFUL_COMMENT_MIN_PRICE} pts/action, only on ${MEANINGFUL_COMMENT_NETWORKS.join(", ")}.`,
           `GitHub & Product Hunt: min ${HIGH_MIN_PRICE_NETWORKS.GITHUB} pts/action.`,
-          "MATE plan + balance + daily task slot required for create_task.",
+          "MULTI_ACTION bundles may only use the platform's comboActions.",
+          "MEMBER or MATE plan + balance + task slot required for create_task. Call get_balance to check them first.",
           "Call get_api_reference for full examples and error catalog.",
         ],
       });
@@ -279,41 +286,106 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
     }
   );
 
+  // ─── Ariadne's Thread [AT-3056] ─────────────────────
+  // What: get_balance tool — the connected account's points, plan, discount and task slots.
+  // Why:  Agents should check what create_task needs before spending, not learn it from an error.
+  // Date: 2026-11-10
+  // Related: backend→api/public_api_views.py:get_balance_via_api
+  // ─────────────────────────────────────────────────────
+  if (!skipTools.has("get_balance")) {
+  server.registerTool(
+    "get_balance",
+    {
+      title: "Get Balance",
+      description:
+        "Get the connected Upvote.club account's points balance, plan, plan discount, and task slots left. Call before create_task to check the user can afford it.",
+      inputSchema: {},
+      outputSchema: publicApiOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+      _meta: toolSecurityMeta(TASK_READ_SECURITY_SCHEMES, {
+        "openai/toolInvocation/invoking": "Checking balance…",
+        "openai/toolInvocation/invoked": "Balance ready",
+      }),
+    },
+    async () => {
+      console.error(`${logPrefix} Tool call: get_balance`);
+      const authorizationFailure = requireAuthorization("tasks:read");
+      if (authorizationFailure) {
+        return authorizationFailure;
+      }
+      const { ok, status, data } = await apiRequest("GET", "/api/public-api/balance/");
+      if (!ok) {
+        return toolResult({ success: false, http_status: status, ...data }, true);
+      }
+      return toolResult(data);
+    }
+  );
+  }
+
   const meaningfulCommentsSchema = z
     .array(z.object({ text: z.string().trim().min(1).describe("Comment text executors must post (no links allowed)") }))
     .min(1)
     .describe("One non-empty comment per requested meaningful COMMENT action; links are not allowed");
 
-  const multiActionItemSchema = z.object({
-    action_type: z.enum(ALL_ACTION_TYPES).describe("Action type, must be unique within the bundle"),
-    price: z.number().int().min(2).describe("Price per action in points"),
-    actions_required: z.number().int().min(1).describe("How many actions of this type to order"),
-    meaningful_comment: z.boolean().optional(),
-    meaningful_comments: meaningfulCommentsSchema.optional(),
-  });
+  // ─── Ariadne's Thread [AT-3055] ─────────────────────
+  // What: Bundle items no longer accept meaningful comments; unknown item keys fail loudly.
+  // Why:  Backend rejects meaningful comments inside MULTI_ACTION (AT-2803); a silent strip
+  //       would create a bundle with random comments instead of the user's text.
+  // Date: 2026-11-10
+  // Related: backend→api/utils/multi_action_task.py:normalize_multi_action_items
+  // ─────────────────────────────────────────────────────
+  const multiActionItemSchema = z
+    .object({
+      action_type: z.enum(ALL_ACTION_TYPES).describe("Action type from the platform's comboActions, unique within the bundle"),
+      price: z.number().int().min(2).describe("Price per action in points"),
+      actions_required: z.number().int().min(1).describe("How many actions of this type to order"),
+    })
+    .strict();
 
   server.registerTool(
     "create_task",
     {
       title: "Create Promotion Task",
       description:
-        "Create a promotion task on Upvote.club. SPENDS points (price × actions_required, plan discount) and 1 daily slot. Call get_api_reference for examples and errors. Auto-detects platform from URL when social_network_code omitted. GitHub/Product Hunt min 16 pts/action; meaningful COMMENT min 64 pts/action.",
+        "Create a promotion task on Upvote.club. SPENDS points (price × actions_required, plan discount) and 1 task slot. Call get_balance first to check points, plan and slots. Call get_api_reference for examples and errors. Auto-detects platform from URL when social_network_code omitted. GitHub/Product Hunt min 16 pts/action; meaningful COMMENT min 64 pts/action.",
       inputSchema: {
         post_url: z.string().url().describe("URL of the post, profile, repo or product to promote"),
         type: z.enum([...ALL_ACTION_TYPES, "MULTI_ACTION"]).describe("Action type or MULTI_ACTION for bundles"),
         price: z.number().int().min(2).optional().describe("Price per action in points (single-action tasks). See list_platforms for minimums."),
         actions_required: z.number().int().min(1).optional().describe("Number of actions (single-action tasks)"),
         social_network_code: z.enum(SOCIAL_NETWORKS.map((n) => n.code)).optional(),
-        is_pinned: z.boolean().optional().describe("Pin task to top of executor feed (default false)"),
-        meaningful_comment: z.boolean().optional().describe("COMMENT only: executors post exact meaningful_comments text (min 64 pts/action)"),
+        is_pinned: z
+          .boolean()
+          .optional()
+          .describe("Pin the task to the top of the feed so it completes about 2x faster. Free for MEMBER and MATE. Default false."),
+        longview: z
+          .boolean()
+          .optional()
+          .describe(
+            "Long time view: people stay on the post for 60 seconds before acting, a stronger signal for the platform. Default true for MULTI_ACTION, false for single actions (same as the website).",
+          ),
+        meaningful_comment: z
+          .boolean()
+          .optional()
+          .describe(
+            `Single COMMENT task only, on ${MEANINGFUL_COMMENT_NETWORKS.join(", ")}: executors post the exact meaningful_comments text (min ${MEANINGFUL_COMMENT_MIN_PRICE} pts/action). Not allowed inside MULTI_ACTION.`,
+          ),
         meaningful_comments: meaningfulCommentsSchema.optional(),
         long_comment: z
           .boolean()
           .optional()
           .describe(
-            "COMMENT only: use unique long comments from the Upvote.club bank. Defaults true for eligible COMMENT tasks when omitted; incompatible with meaningful_comment.",
+            "COMMENT only (single or inside MULTI_ACTION): use unique long comments from the Upvote.club bank. Defaults true for eligible COMMENT tasks when omitted; incompatible with meaningful_comment.",
           ),
-        multi_action_items: z.array(multiActionItemSchema).min(2).optional(),
+        multi_action_items: z
+          .array(multiActionItemSchema)
+          .min(2)
+          .optional()
+          .describe("MULTI_ACTION only: at least 2 different actions from the platform's comboActions (see list_platforms)."),
       },
       outputSchema: publicApiOutputSchema,
       annotations: {
@@ -362,6 +434,16 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
             true,
           );
         }
+        if (args.meaningful_comment || args.meaningful_comments) {
+          return toolResult(
+            {
+              success: false,
+              error:
+                "Meaningful comments cannot be part of a MULTI_ACTION task. Create a separate single COMMENT task with meaningful_comment.",
+            },
+            true,
+          );
+        }
         const seenActions = new Set();
         for (const item of args.multi_action_items || []) {
           if (seenActions.has(item.action_type)) {
@@ -383,28 +465,23 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
               true
             );
           }
-          const floor = minPriceFor(networkCode, item.action_type, Boolean(item.meaningful_comment));
+          if (!isComboEligible(networkCode, item.action_type)) {
+            return toolResult(
+              {
+                success: false,
+                error:
+                  `Action ${item.action_type} cannot be part of a MULTI_ACTION task on ${network.name}. ` +
+                  `Bundle actions: ${comboActionsFor(network).join(", ")}. Order ${item.action_type} as a separate task.`,
+              },
+              true,
+            );
+          }
+          const floor = minPriceFor(networkCode, item.action_type);
           if (item.price < floor) {
             return toolResult(
               { success: false, error: `Price for ${item.action_type} on ${network.name} must be at least ${floor} points.` },
               true
             );
-          }
-          if (item.meaningful_comment) {
-            const commentCount = (item.meaningful_comments || []).filter(
-              (comment) => comment.text.trim().length > 0,
-            ).length;
-            if (commentCount < item.actions_required) {
-              return toolResult(
-                {
-                  success: false,
-                  error:
-                    `meaningful_comments for ${item.action_type} must contain at least ` +
-                    `${item.actions_required} non-empty comments (got ${commentCount}).`,
-                },
-                true,
-              );
-            }
           }
         }
         const commentItem = args.multi_action_items.find(
@@ -415,15 +492,6 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
             {
               success: false,
               error: "long_comment requires a COMMENT item in multi_action_items.",
-            },
-            true,
-          );
-        }
-        if (args.long_comment && commentItem?.meaningful_comment) {
-          return toolResult(
-            {
-              success: false,
-              error: "long_comment and meaningful_comment cannot be enabled together.",
             },
             true,
           );
@@ -445,6 +513,23 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
         if (args.price < floor) {
           return toolResult(
             { success: false, error: `Price for ${args.type} on ${network.name} must be at least ${floor} points.` },
+            true
+          );
+        }
+        if (args.meaningful_comment && args.type !== "COMMENT") {
+          return toolResult(
+            { success: false, error: "meaningful_comment is only supported for COMMENT tasks." },
+            true
+          );
+        }
+        if (args.meaningful_comment && !supportsMeaningfulComment(networkCode)) {
+          return toolResult(
+            {
+              success: false,
+              error:
+                `Meaningful comments are available on ${MEANINGFUL_COMMENT_NETWORKS.join(", ")} only. ` +
+                `On ${network.name} use a regular COMMENT task (long_comment is on by default).`,
+            },
             true
           );
         }
@@ -498,6 +583,8 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
       if (args.is_pinned !== undefined) {
         payload.is_pinned = args.is_pinned;
       }
+      // [AT-3055] Same default as the website: Long time view on for bundles, off for single actions.
+      payload.longview = args.longview ?? isMulti;
       if (args.long_comment !== undefined) {
         payload.long_comment = args.long_comment;
       }
@@ -627,6 +714,7 @@ export function createUpvoteClubServer(config = {}, options = {}) {
   }, {
     instructions:
       "Use list_platforms before creating a task when the platform or action is uncertain. " +
+      "Call get_balance to check points, plan and task slots before create_task. " +
       "Before create_task, confirm the URL, action, quantity, price per action, and that points will be spent. " +
       "Use delete_task only after explicit user confirmation.",
   });

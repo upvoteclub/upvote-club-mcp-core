@@ -6,7 +6,7 @@ Shared MCP server for the [Upvote.club Public API](https://upvote.club/api).
 
 | Package | Repository | Use case |
 |---------|------------|----------|
-| **Core** | **This repo** — [upvote-club-mcp-core](https://github.com/upvoteclub/upvote-club-mcp-core) | Shared MCP server library (5 tools) |
+| **Core** | **This repo** — [upvote-club-mcp-core](https://github.com/upvoteclub/upvote-club-mcp-core) | Shared MCP server library (6 tools) |
 | Local | [upvote-club-mcp-local](https://github.com/upvoteclub/upvote-club-mcp-local) | Cursor, Claude Code, manual Claude Desktop (`stdio`) |
 | MCPB | [upvote-club-mcp-mcpb](https://github.com/upvoteclub/upvote-club-mcp-mcpb) | Single-click Claude Desktop `.mcpb` install |
 | Remote | [upvote-club-mcp-remote](https://github.com/upvoteclub/upvote-club-mcp-remote) | Canonical remote server: OAuth, API keys, and MCP Apps UI |
@@ -22,12 +22,13 @@ Public API UI: [upvote.club/api](https://upvote.club/api)
 
 Use the canonical **Remote** endpoint for HTTP MCP hosts. Install **Local** or **MCPB** only when a local stdio process is required.
 
-## Tools (5)
+## Tools (6)
 
 | Tool | Auth |
 |------|------|
 | `get_api_reference` | No API call |
 | `list_platforms` | No API call |
+| `get_balance` | OAuth or API key |
 | `create_task` | OAuth or API key |
 | `get_task_status` | OAuth or API key |
 | `delete_task` | OAuth or API key |

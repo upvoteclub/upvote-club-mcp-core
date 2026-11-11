@@ -24,7 +24,7 @@ The key is shown only once — save it securely. To rotate, generate a new key a
 |------|-------|
 | Global minimum per action | 2 points |
 | GitHub / Product Hunt | 16 points per action |
-| Meaningful COMMENT | 64 points per action |
+| Meaningful COMMENT | 64 points per action; single COMMENT tasks on Quora, Reddit, LinkedIn |
 | Charge | `price × actions_required` (plan discount on create) |
 | Daily slot | 1 slot per `create_task` |
 | Refund | `delete_task` refunds incomplete actions |
@@ -78,16 +78,15 @@ The key is shown only once — save it securely. To rotate, generate a new key a
   "social_network_code": "TWITTER",
   "multi_action_items": [
     { "action_type": "LIKE", "price": 2, "actions_required": 10 },
-    {
-      "action_type": "COMMENT",
-      "price": 64,
-      "actions_required": 1,
-      "meaningful_comment": true,
-      "meaningful_comments": [{ "text": "Solid thread." }]
-    }
-  ]
+    { "action_type": "COMMENT", "price": 4, "actions_required": 3 }
+  ],
+  "is_pinned": true
 }
 ```
+
+Bundle items take only `action_type`, `price` and `actions_required`. Use the platform's `comboActions` from `list_platforms`. Meaningful comments are not allowed in bundles: order them as a separate COMMENT task.
+
+In MCP, `longview` (Long time view, 60 seconds on the post before acting) defaults to `true` for bundles and `false` for single actions, the same as the website. `is_pinned` pins the task to the top of the feed; it is free on MEMBER and MATE.
 
 ### Long comment from the Upvote.club bank
 
@@ -110,18 +109,38 @@ The key is shown only once — save it securely. To rotate, generate a new key a
 | 403 | MEMBER or MATE plan required |
 | 400 | Missing required fields |
 | 400 | Minimum price per action is 2 points |
+| 400 | Minimum price per action for this platform is 16 points (GitHub, Product Hunt) |
 | 400 | No available tasks left |
 | 400 | Insufficient balance |
 | 400 | Duplicate URL+type+platform |
 | 400 | meaningful_comments required, insufficient text count, or links present |
 | 400 | long_comment and meaningful_comment enabled together |
 
-## Tools (5)
+## get_balance
+
+`GET /api/public-api/balance/`
+
+```json
+{
+  "success": true,
+  "balance": 1200,
+  "plan": "MATE",
+  "can_create_tasks": true,
+  "discount_percent": 40,
+  "task_slots_left": 10000,
+  "unlimited_task_slots": true
+}
+```
+
+`can_create_tasks` is `false` on FREE and BUDDY plans, and the response then includes `upgrade_url`.
+
+## Tools (6)
 
 | Tool | Auth | Purpose |
 |------|------|---------|
 | `get_api_reference` | No API call | Full docs (JSON) |
 | `list_platforms` | No API call | Platforms + min prices |
+| `get_balance` | OAuth or API key | Points, plan, discount, task slots |
 | `create_task` | OAuth or API key | Create promotion |
 | `get_task_status` | OAuth or API key | Track progress |
 | `delete_task` | OAuth or API key | Cancel + refund |

@@ -8,7 +8,10 @@ import {
   MIN_PRICES,
   HIGH_MIN_PRICE_NETWORKS,
   MEANINGFUL_COMMENT_MIN_PRICE,
+  MEANINGFUL_COMMENT_NETWORKS,
   SOCIAL_NETWORKS,
+  comboActionsFor,
+  supportsMeaningfulComment,
 } from "./platforms.js";
 
 // ─── Ariadne's Thread [AT-2245] ─────────────────────
@@ -56,8 +59,10 @@ export const API_REFERENCE = {
     },
     meaningfulComment: {
       minPerAction: MEANINGFUL_COMMENT_MIN_PRICE,
-      appliesTo: "COMMENT actions with meaningful_comment: true",
+      appliesTo: "Single COMMENT tasks with meaningful_comment: true",
+      networks: MEANINGFUL_COMMENT_NETWORKS,
       requires: "meaningful_comments: [{ text: '...' }] — no links in comment text",
+      notAllowedIn: "MULTI_ACTION bundles",
     },
     formula: "total_cost ≈ sum(price × actions_required) × (1 - plan_discount). MCP validates floors before calling API.",
   },
@@ -68,6 +73,8 @@ export const API_REFERENCE = {
     postUrlExample: n.postUrlExample,
     profileUrlExample: n.profileUrlExample,
     domains: n.domains,
+    comboActions: comboActionsFor(n),
+    meaningfulCommentSupported: supportsMeaningfulComment(n.code),
     minPricePerAction: Object.fromEntries(
       n.availableActions.map((a) => [a, Math.max(MIN_PRICES[a] || 2, HIGH_MIN_PRICE_NETWORKS[n.code] || 0, 2)])
     ),
@@ -81,6 +88,28 @@ export const API_REFERENCE = {
     get_api_reference: {
       description: "Returns this full reference document (examples, errors, pricing). Does not call the Public API; remote MCP still requires OAuth or X-API-Key to connect.",
       input: {},
+    },
+    get_balance: {
+      description: "Points balance, plan, plan discount and task slots left for the connected account. Call before create_task.",
+      auth: "OAuth 2.1 (tasks:read) or X-API-Key",
+      http: "GET /api/public-api/balance/",
+      input: {},
+      successExample: {
+        success: true,
+        balance: 1200,
+        plan: "MATE",
+        can_create_tasks: true,
+        discount_percent: 40,
+        task_slots_left: 10000,
+        unlimited_task_slots: true,
+      },
+      notes: [
+        "can_create_tasks is false on FREE and BUDDY plans; the response then includes upgrade_url.",
+        "Expected cost of a task ≈ price × actions_required × (1 - discount_percent / 100).",
+      ],
+      errors: [
+        { status: 401, error: "Invalid or missing API key. Provide X-API-Key header or api_key parameter." },
+      ],
     },
     create_task: {
       description: "Create promotion task. Spends points and 1 daily slot immediately.",
@@ -100,11 +129,22 @@ export const API_REFERENCE = {
         },
         price: { type: "integer", required: "single-action only", min: 2, description: "Points per completed action" },
         actions_required: { type: "integer", required: "single-action only", min: 1, description: "How many actions to order" },
-        is_pinned: { type: "boolean", optional: true, default: false, description: "Pin task to top of executor feed" },
+        is_pinned: {
+          type: "boolean",
+          optional: true,
+          default: false,
+          description: "Pin the task to the top of the feed so it completes about 2x faster (free for MEMBER and MATE)",
+        },
+        longview: {
+          type: "boolean",
+          optional: true,
+          default: "true for MULTI_ACTION, false for single actions (MCP default, same as the website)",
+          description: "Long time view: people stay on the post for 60 seconds before acting",
+        },
         meaningful_comment: {
           type: "boolean",
           optional: true,
-          description: "COMMENT only — executors must post exact text from meaningful_comments (min 64 pts/action)",
+          description: `Single COMMENT tasks on ${MEANINGFUL_COMMENT_NETWORKS.join(", ")} only — executors must post exact text from meaningful_comments (min 64 pts/action). Not allowed in MULTI_ACTION.`,
         },
         meaningful_comments: {
           type: "array",
@@ -123,8 +163,12 @@ export const API_REFERENCE = {
           type: "array",
           required: "when type is MULTI_ACTION (min 2 items)",
           format:
-            '[{ "action_type": "LIKE", "price": 2, "actions_required": 10 }, { "action_type": "COMMENT", "price": 64, "actions_required": 1, "meaningful_comment": true, "meaningful_comments": [{ "text": "Great post!" }] }]',
-          rules: ["Each action_type unique within bundle", "Each action must be allowed on social_network_code"],
+            '[{ "action_type": "LIKE", "price": 2, "actions_required": 10 }, { "action_type": "COMMENT", "price": 4, "actions_required": 3 }]',
+          rules: [
+            "Each action_type unique within bundle",
+            "Each action must be in the platform's comboActions (CONNECT, Substack SUBSCRIBE and Product Hunt FOLLOW are single-task only)",
+            "Items take only action_type, price, actions_required; meaningful comments are not allowed in bundles",
+          ],
         },
       },
       examples: {
@@ -158,14 +202,10 @@ export const API_REFERENCE = {
           social_network_code: "TWITTER",
           multi_action_items: [
             { action_type: "LIKE", price: 2, actions_required: 10 },
-            {
-              action_type: "COMMENT",
-              price: 64,
-              actions_required: 1,
-              meaningful_comment: true,
-              meaningful_comments: [{ text: "Solid thread, thanks for sharing." }],
-            },
+            { action_type: "COMMENT", price: 4, actions_required: 3 },
           ],
+          is_pinned: true,
+          note: "longview defaults to true for bundles; long_comment defaults to true when a COMMENT item is present",
         },
         githubStars: {
           post_url: "https://github.com/org/repo",
@@ -204,6 +244,7 @@ export const API_REFERENCE = {
         { status: 403, error: "API access requires MEMBER or MATE plan. Please upgrade your account." },
         { status: 400, error: "Missing required fields: post_url, type, price, actions_required, social_network_code" },
         { status: 400, error: "Minimum price per action is 2 points" },
+        { status: 400, error: "Minimum price per action for this platform is 16 points", note: "GitHub and Product Hunt" },
         { status: 400, error: "No available tasks left. Please purchase more tasks." },
         {
           status: 400,
@@ -300,7 +341,7 @@ export const API_REFERENCE = {
     "1. Call get_api_reference or list_platforms before first create_task in a session.",
     "2. Detect social_network_code from URL or ask user.",
     "3. Pick action type allowed on that platform; check min price (16 for GitHub/Product Hunt, 64 for meaningful COMMENT).",
-    "4. Confirm price × quantity and daily slot spend with user.",
+    "4. Call get_balance; confirm price × quantity, plan discount and slot spend with user.",
     "5. create_task → save task_id.",
     "6. get_task_status to poll progress.",
     "7. delete_task only if user confirms cancel (destructive).",
