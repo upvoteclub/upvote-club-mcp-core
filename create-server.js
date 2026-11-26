@@ -21,6 +21,7 @@ import {
   supportsMeaningfulComment,
 } from "./platforms.js";
 import { API_REFERENCE, getApiReferenceText } from "./api-reference.js";
+import { registerBacklinksTools } from "./backlinks-tools.js";
 
 const DEFAULT_API_URL = "https://api.upvote.club";
 const DEFAULT_OAUTH_RESOURCE_METADATA_URL =
@@ -693,6 +694,9 @@ export function registerUpvoteClubTools(server, config = {}, options = {}) {
   );
   }
 
+  // [AT-3850] Directory Submissions and Forum Backlinks tools share the same auth and API helper.
+  registerBacklinksTools(server, { apiRequest, toolResult, requireAuthorization, logPrefix }, skipTools);
+
   return {
     apiRequest,
     toolResult,
@@ -710,13 +714,15 @@ export function createUpvoteClubServer(config = {}, options = {}) {
 
   const server = new McpServer({
     name: "upvote-club",
-    version: "2.1.0",
+    version: "2.2.0",
   }, {
     instructions:
       "Use list_platforms before creating a task when the platform or action is uncertain. " +
       "Call get_balance to check points, plan and task slots before create_task. " +
       "Before create_task, confirm the URL, action, quantity, price per action, and that points will be spent. " +
-      "Use delete_task only after explicit user confirmation.",
+      "Use delete_task only after explicit user confirmation. " +
+      "For directory submissions and forum backlinks: create the project, read its table, confirm the chosen IDs " +
+      "and total points with the user, then call submit_to_directories or place_forum_backlinks.",
   });
 
   registerUpvoteClubTools(server, config, options);

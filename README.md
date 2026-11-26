@@ -22,7 +22,7 @@ Public API UI: [upvote.club/api](https://upvote.club/api)
 
 Use the canonical **Remote** endpoint for HTTP MCP hosts. Install **Local** or **MCPB** only when a local stdio process is required.
 
-## Tools (6)
+## Tools (16)
 
 | Tool | Auth |
 |------|------|
@@ -32,6 +32,16 @@ Use the canonical **Remote** endpoint for HTTP MCP hosts. Install **Local** or *
 | `create_task` | OAuth or API key |
 | `get_task_status` | OAuth or API key |
 | `delete_task` | OAuth or API key |
+| `create_directory_project` | OAuth or API key |
+| `list_directory_projects` | OAuth or API key |
+| `get_directory_project` | OAuth or API key |
+| `submit_to_directories` | OAuth or API key |
+| `get_directory_submissions` | OAuth or API key |
+| `create_forum_project` | OAuth or API key |
+| `list_forum_projects` | OAuth or API key |
+| `get_forum_project` | OAuth or API key |
+| `place_forum_backlinks` | OAuth or API key |
+| `get_forum_placements` | OAuth or API key |
 
 Remote MCP requires OAuth or an API key on every request, including the catalog tools.
 

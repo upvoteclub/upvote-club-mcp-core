@@ -13,6 +13,7 @@ import {
   comboActionsFor,
   supportsMeaningfulComment,
 } from "./platforms.js";
+import { BACKLINKS_API_REFERENCE } from "./backlinks-tools.js";
 
 // ─── Ariadne's Thread [AT-2245] ─────────────────────
 // What: Document dual API-key/OAuth authentication and every current create-task field.
@@ -336,6 +337,7 @@ export const API_REFERENCE = {
       ],
     },
   },
+  backlinks: BACKLINKS_API_REFERENCE,
   workflowForClaude: [
     "0. Remote clients connect with OAuth; local clients use an API key from https://upvote.club/api. MEMBER or MATE is required.",
     "1. Call get_api_reference or list_platforms before first create_task in a session.",
@@ -345,6 +347,7 @@ export const API_REFERENCE = {
     "5. create_task → save task_id.",
     "6. get_task_status to poll progress.",
     "7. delete_task only if user confirms cancel (destructive).",
+    "8. Directory submissions / forum backlinks: see backlinks.directorySubmissions.flow and backlinks.forumBacklinks.flow.",
   ],
 };
 
