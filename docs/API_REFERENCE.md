@@ -134,7 +134,7 @@ In MCP, `longview` (Long time view, 60 seconds on the post before acting) defaul
 
 `can_create_tasks` is `false` on FREE and BUDDY plans, and the response then includes `upgrade_url`.
 
-## Tools (6)
+## Tools (16)
 
 | Tool | Auth | Purpose |
 |------|------|---------|
@@ -144,6 +144,16 @@ In MCP, `longview` (Long time view, 60 seconds on the post before acting) defaul
 | `create_task` | OAuth or API key | Create promotion |
 | `get_task_status` | OAuth or API key | Track progress |
 | `delete_task` | OAuth or API key | Cancel + refund |
+| `create_directory_project` | OAuth or API key | Directory Submissions project + directories table |
+| `list_directory_projects` | OAuth or API key | Your directory projects |
+| `get_directory_project` | OAuth or API key | Directories table with status per directory |
+| `submit_to_directories` | OAuth or API key | Submit to chosen directory IDs (spends points) |
+| `get_directory_submissions` | OAuth or API key | Submission statuses and live listing URLs |
+| `create_forum_project` | OAuth or API key | Forum Backlinks project + forums table |
+| `list_forum_projects` | OAuth or API key | Your forum projects |
+| `get_forum_project` | OAuth or API key | Forums table with status per forum |
+| `place_forum_backlinks` | OAuth or API key | Place backlinks on chosen forum IDs (spends points) |
+| `get_forum_placements` | OAuth or API key | Placement statuses and live backlink URLs |
 
 Remote MCP requires OAuth or an API key on every request, including the catalog tools.
 
